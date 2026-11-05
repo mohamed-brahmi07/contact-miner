@@ -68,15 +68,67 @@ td a:hover{text-decoration:underline}
 .empty{padding:26px;text-align:center;color:var(--muted)}
 .ok{color:var(--accent)}.err{color:var(--err)}.warn{color:var(--warn)}
 #results{display:none}
+header .in{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.helpbtn{border-color:rgba(255,255,255,.7);color:#fff;padding:8px 16px}
+.helpbtn:hover{background:rgba(255,255,255,.12)}
+dialog{margin:auto;border:none;border-radius:14px;padding:0;max-width:720px;width:calc(100% - 32px);max-height:85vh;
+  background:var(--card);color:var(--ink);box-shadow:0 12px 40px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(10,15,25,.55)}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--card)}
+.dlg-head h2{font-size:1.1rem;color:var(--brand)}
+.dlg-head button{padding:6px 12px}
+.dlg-body{padding:6px 22px 22px;overflow-y:auto;max-height:calc(85vh - 60px);font-size:.93rem}
+.dlg-body h3{font-size:.98rem;color:var(--brand);margin:18px 0 6px}
+.dlg-body p{margin:6px 0}
+.dlg-body ol,.dlg-body ul{margin:6px 0 6px 22px}
+.dlg-body li{margin:4px 0}
 @media (max-width:760px){.grid{grid-template-columns:1fr 1fr}.span2{grid-column:1/-1}}
 @media (max-width:460px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <header><div class="in">
-  <h1>🎓 Academic Contact Miner</h1>
-  <p>Author contact search in Europe PMC</p>
+  <div><h1>🎓 Academic Contact Miner</h1>
+  <p>Author contact search in Europe PMC</p></div>
+  <button class="helpbtn" id="helpBtn" type="button">Mode d'emploi</button>
 </div></header>
+
+<dialog id="help" aria-labelledby="help-title">
+  <div class="dlg-head"><h2 id="help-title">Guide d'utilisation</h2>
+    <button type="button" id="helpClose">Fermer</button></div>
+  <div class="dlg-body" lang="fr">
+    <h3>Accès</h3>
+    <p>Ouvrir le lien de l'outil dans un navigateur (Chrome, Firefox, Safari ou Edge). Aucun compte ni logiciel n'est nécessaire, et l'outil fonctionne sur Mac comme sur Windows.</p>
+
+    <h3>Lancer une recherche</h3>
+    <ol>
+      <li><b>Keywords</b> : saisir 2 ou 3 mots-clés en anglais, séparés par des virgules (ex. : <i>encapsulation, spray drying, polyphenols</i>).</li>
+      <li><b>From year</b> : indiquer l'année de publication à partir de laquelle chercher (2019 par défaut).</li>
+      <li><b>Max papers</b> : indiquer le nombre maximum d'articles à analyser (300 par défaut, jusqu'à 5000).</li>
+      <li><b>Include open-access full texts</b> : laisser cette case cochée pour lire aussi le texte complet des articles en libre accès. C'est là que figure l'e-mail de l'auteur correspondant ; la recherche est plus longue mais trouve beaucoup plus d'adresses.</li>
+      <li>Cliquer sur <b>Start search</b>. La barre de progression indique l'avancement ; le bouton <b>Stop</b> interrompt la recherche en gardant les résultats déjà trouvés.</li>
+    </ol>
+    <p>Si aucun article n'est trouvé, l'outil relance automatiquement la recherche avec moins de mots-clés.</p>
+
+    <h3>Résultats et export</h3>
+    <p>Un tableau affiche les auteurs trouvés : nom, e-mail, institution, titre de l'article (lien cliquable) et année. Le résumé au-dessus indique le nombre d'articles, d'auteurs et d'e-mails trouvés.</p>
+    <ul>
+      <li><b>Filter</b> : filtrer le tableau par nom, institution ou titre.</li>
+      <li><b>With e-mail only</b> : n'afficher que les auteurs avec une adresse e-mail (coché par défaut).</li>
+      <li><b>Download CSV</b> : télécharger les résultats dans un fichier qui s'ouvre directement dans Excel. Le fichier est enregistré dans le dossier Téléchargements.</li>
+      <li><b>Copy e-mails</b> : copier toutes les adresses affichées, une par ligne.</li>
+    </ul>
+    <p>Les e-mails marqués <i>full text</i> proviennent du texte complet de l'article.</p>
+
+    <h3>Options supplémentaires</h3>
+    <p>Cliquer sur <b>More options</b> pour afficher :</p>
+    <ul>
+      <li><b>Max full texts to read</b> : nombre maximum de textes complets lus par recherche (300 par défaut). Une valeur plus élevée trouve plus d'e-mails mais prend plus de temps.</li>
+      <li><b>Skip contacts I already have</b> : charger un fichier CSV d'une recherche précédente. Les adresses qu'il contient sont exclues des nouveaux résultats, ce qui évite les doublons.</li>
+    </ul>
+  </div>
+</dialog>
 
 <main>
 <section class="card" aria-labelledby="h-search">
@@ -493,6 +545,9 @@ $("known").addEventListener("change", async e => {
   knownEmails = new Set(extractEmails(await f.text()));
   $("knownMsg").textContent = `${knownEmails.size} e-mails loaded from ${f.name}.`;
 });
+$("helpBtn").addEventListener("click", () => $("help").showModal());
+$("helpClose").addEventListener("click", () => $("help").close());
+$("help").addEventListener("click", e => { if (e.target === $("help")) $("help").close(); });
 $("year").max = CURRENT_YEAR;
 loadSettings();
 </script>
