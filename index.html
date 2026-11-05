@@ -66,7 +66,6 @@ td a:hover{text-decoration:underline}
 .tag{font-size:.7rem;background:var(--chip);color:var(--muted);border-radius:5px;padding:1px 6px;margin-left:4px}
 .muted{color:var(--muted)}
 .empty{padding:26px;text-align:center;color:var(--muted)}
-.note{font-size:.8rem;color:var(--muted);line-height:1.5}
 .ok{color:var(--accent)}.err{color:var(--err)}.warn{color:var(--warn)}
 #results{display:none}
 @media (max-width:760px){.grid{grid-template-columns:1fr 1fr}.span2{grid-column:1/-1}}
@@ -76,7 +75,7 @@ td a:hover{text-decoration:underline}
 <body>
 <header><div class="in">
   <h1>🎓 Academic Contact Miner</h1>
-  <p>Find corresponding authors and their e-mails from Europe PMC (includes all of PubMed) and open-access full texts</p>
+  <p>Author contact search in Europe PMC</p>
 </div></header>
 
 <main>
@@ -86,14 +85,13 @@ td a:hover{text-decoration:underline}
     <div class="span4">
       <label for="kw">Keywords</label>
       <input id="kw" type="text" placeholder="e.g.  encapsulation, spray drying, polyphenols" autocomplete="off">
-      <div class="hint">Separate with commas. 2–3 specific terms work best; if nothing is found, the search is retried with fewer terms.</div>
+      <div class="hint">Separate keywords with commas.</div>
     </div>
     <div><label for="year">From year</label><input id="year" type="number" min="1950" value="2019"></div>
-    <div><label for="maxn">Max papers</label><input id="maxn" type="number" min="10" max="5000" value="300">
-      <div class="hint">Up to 5000</div></div>
+    <div><label for="maxn">Max papers</label><input id="maxn" type="number" min="10" max="5000" value="300"></div>
     <div class="span2" style="display:flex;align-items:center">
       <label class="chk"><input id="ft" type="checkbox" checked>
-        <span>Read open-access full texts <span class="muted">— finds most corresponding-author e-mails, takes longer</span></span></label>
+        <span>Include open-access full texts</span></label>
     </div>
   </div>
 
@@ -101,13 +99,9 @@ td a:hover{text-decoration:underline}
     <summary>More options</summary>
     <div class="grid">
       <div><label for="ftcap">Max full texts to read</label><input id="ftcap" type="number" min="10" max="2000" value="300"></div>
-      <div><label for="par">Parallel downloads</label><input id="par" type="number" min="1" max="8" value="4"></div>
-      <div class="span2"><label for="contact">Your e-mail (optional)</label>
-        <input id="contact" type="email" placeholder="you@university.fr">
-        <div class="hint">Sent to Europe PMC as a courtesy contact, as their API guidelines ask.</div></div>
       <div class="span4"><label for="known">Skip contacts I already have</label>
         <input id="known" type="file" accept=".csv,.txt,.tsv">
-        <div class="hint" id="knownMsg">Load a previous CSV: any e-mail in it is left out of the new results.</div></div>
+        <div class="hint" id="knownMsg">Load a previous CSV to exclude contacts already collected.</div></div>
     </div>
   </details>
 
@@ -135,7 +129,6 @@ td a:hover{text-decoration:underline}
   </table></div>
   <div class="status" id="tableMsg"></div>
 </section>
-
 
 </main>
 
@@ -251,14 +244,12 @@ function parseHit(h){
   return paper;
 }
 async function searchEPMC(kws, year, maxN){
-  const contact = $("contact").value.trim();
   for (const v of keywordVariants(kws)){
     const query = v.map(k => `(${k})`).join(" AND ") + ` AND PUB_YEAR:[${year} TO ${CURRENT_YEAR}]`;
     let cursor = "*", papers = [], total = 0;
     while (papers.length < maxN){
       const p = new URLSearchParams({query, resultType: "core", format: "json",
                                      pageSize: String(Math.min(1000, maxN - papers.length)), cursorMark: cursor});
-      if (contact) p.set("email", contact);
       const d = await fetchRetry(`${EPMC}/search?${p}`, "json");
       total = d.hitCount || total;
       const hits = (d.resultList && d.resultList.result) || [];
@@ -362,7 +353,7 @@ async function enrichFullText(papers, cap, par){
     }
   };
   try { await Promise.all(Array.from({length: par}, worker)); }
-  catch (e){ log("⚠️ Full texts could not be downloaded by this browser — continuing with affiliation e-mails only."); }
+  catch (e){ log("Full texts unavailable — continuing with affiliation e-mails."); }
   log(`Full texts: +${added} e-mails`);
 }
 
@@ -407,7 +398,7 @@ function renderTable(){
     <td>${esc(r.institution)}</td>
     <td><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.paper_title)}</a></td>
     <td>${esc(r.year)}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">No matching authors</td></tr>`;
-  $("tableMsg").textContent = v.length > max ? `Showing the first ${max} of ${v.length} rows — the CSV contains all of them.` : "";
+  $("tableMsg").textContent = v.length > max ? `Showing ${max} of ${v.length} rows (all rows are in the CSV).` : "";
 }
 function renderStats(nPapers, skipped, secs){
   const withMail = rows.filter(r => r.email).length;
@@ -415,7 +406,7 @@ function renderStats(nPapers, skipped, secs){
   $("stats").innerHTML = [
     [nPapers, "papers"], [rows.length, "unique authors"],
     [`${withMail} (${rows.length ? Math.round(withMail / rows.length * 100) : 0}%)`, "with e-mail"],
-    [ft, "from full texts"], ...(skipped ? [[skipped, "already in your file — skipped"]] : []),
+    [ft, "from full texts"], ...(skipped ? [[skipped, "already collected"]] : []),
     [`${secs} s`, "time"]
   ].map(([b, s]) => `<div class="stat"><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
 }
@@ -433,7 +424,7 @@ function downloadCSV(){
 async function copyEmails(){
   const list = [...new Set(visibleRows().map(r => r.email).filter(Boolean))].join("\n");
   try { await navigator.clipboard.writeText(list); $("tableMsg").textContent = `${list.split("\n").filter(Boolean).length} e-mails copied.`; }
-  catch { $("tableMsg").textContent = "Copy was blocked by the browser — use Download CSV instead."; }
+  catch { $("tableMsg").textContent = "Copy failed — use Download CSV."; }
 }
 
 /* ---------- main ---------- */
@@ -443,7 +434,7 @@ async function run(){
   const year = parseInt($("year").value) || 2019;
   const maxN = Math.max(10, Math.min(5000, parseInt($("maxn").value) || 300));
   const cap = Math.max(10, Math.min(2000, parseInt($("ftcap").value) || 300));
-  const par = Math.max(1, Math.min(8, parseInt($("par").value) || 4));
+  const par = 4;
   saveSettings();
   lastKeywords = kws; ctrl = new AbortController();
   $("runBtn").disabled = true; $("stopBtn").disabled = false;
@@ -469,14 +460,14 @@ async function run(){
     status(`Done${stopped} — ${rows.filter(r => r.email).length} e-mails from ${papers.length} papers in ${secs} s.`, "ok");
   } catch (e){
     if (e.name === "AbortError") status("Stopped.", "warn");
-    else { status("Error: " + e.message + " — check your internet connection and try again.", "err"); log(String(e)); }
+    else { status("Error: " + e.message, "err"); log(String(e)); }
   } finally {
     $("runBtn").disabled = false; $("stopBtn").disabled = true;
   }
 }
 
 /* ---------- settings memory (this browser only) ---------- */
-const SET_KEYS = ["kw","year","maxn","ftcap","par","contact"];
+const SET_KEYS = ["kw","year","maxn","ftcap"];
 function saveSettings(){
   try { localStorage.setItem("acm-settings", JSON.stringify(Object.fromEntries(
     [...SET_KEYS.map(k => [k, $(k).value]), ["ft", $("ft").checked]]))); } catch {}
@@ -500,7 +491,7 @@ $("copyBtn").addEventListener("click", copyEmails);
 $("known").addEventListener("change", async e => {
   const f = e.target.files[0]; if (!f) return;
   knownEmails = new Set(extractEmails(await f.text()));
-  $("knownMsg").textContent = `${knownEmails.size} e-mails loaded from ${f.name} — they will be left out of new results.`;
+  $("knownMsg").textContent = `${knownEmails.size} e-mails loaded from ${f.name}.`;
 });
 $("year").max = CURRENT_YEAR;
 loadSettings();
